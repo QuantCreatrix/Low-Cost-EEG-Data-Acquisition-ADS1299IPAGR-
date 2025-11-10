@@ -1,0 +1,70 @@
+#include <SPI.h>
+
+// SPI Command Definitions (pg. 35)
+const byte WAKEUP = 0b00000010;
+const byte STANDBY = 0b00000100;
+const byte RESET = 0b00000110;
+const byte START = 0b00001000;
+const byte STOP = 0b00001010;
+const byte RDATAC = 0b00010000;
+const byte SDATAC = 0b00010001;
+const byte RDATA = 0b00010010;
+
+// Register Addresses
+const byte ID_REG = 0x00;
+
+// Pins
+const int CS = 5; // Make sure this matches your hardware
+const int DRDY = 17;
+
+// SPI Settings
+SPISettings ads1299Settings(1000000, MSBFIRST, SPI_MODE1);
+
+void setup() {
+  Serial.begin(9600);
+  
+  // Initialize pins
+  pinMode(DRDY, INPUT);
+  pinMode(CS, OUTPUT);
+  digitalWrite(CS, HIGH); // Active low, start inactive
+  
+  // Initialize SPI
+  SPI.begin(18, 19, 23, 5);
+  
+  // Reset device
+  digitalWrite(CS, LOW);
+  SPI.beginTransaction(ads1299Settings);
+  SPI.transfer(RESET);
+  delayMicroseconds(10); // tRESET = 4*tCLK = ~2.7μs (minimum)
+  digitalWrite(CS, HIGH);
+  SPI.endTransaction();
+  
+  delay(10); // Allow time for reset to complete
+}
+
+void loop() {
+  if (!deviceIDReturned) {
+    getDeviceID();
+    deviceIDReturned = true;
+  }
+}
+
+void getDeviceID() {
+  digitalWrite(CS, LOW);
+  SPI.beginTransaction(ads1299Settings);
+  
+  // Send SDATAC command to stop continuous mode
+  SPI.transfer(SDATAC);
+  
+  // Read ID register (0x00)
+  SPI.transfer(RREG | 0x00); // RREG command for register 0x00
+  SPI.transfer(0x00);        // Read 1 byte
+  
+  byte deviceID = SPI.transfer(0x00); // Read the actual ID
+  
+  digitalWrite(CS, HIGH);
+  SPI.endTransaction();
+  
+  Serial.print("Device ID: 0b");
+  Serial.println(deviceID, BIN);
+}
